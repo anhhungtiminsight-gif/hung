@@ -1,0 +1,86 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="fonts/fontsource-variable-baloo-2-5.3.0/index.css">
+<link rel="stylesheet" href="fonts/fontsource-be-vietnam-pro-5.3.0/800.css">
+<link rel="stylesheet" href="fonts/noto-emoji/index.css">
+<style>
+html,body{margin:0;padding:0;background:transparent;width:1080px;height:1920px;overflow:hidden}
+#stage{position:absolute;left:0;top:0;width:1080px;height:1920px}
+.el{position:absolute;transform-origin:50% 50%;will-change:transform}
+.title{font-family:'Baloo 2 Variable';font-weight:800;text-transform:uppercase;line-height:1.02;text-align:center;white-space:nowrap}
+.w{display:inline-block;position:relative;margin:0 .12em;transform-origin:50% 70%}
+.w .b,.w .f{display:block}
+.w .b{position:absolute;left:0;top:0;color:#111112;-webkit-text-stroke:var(--sw) #111112;filter:drop-shadow(0 var(--sh) 0 #111112)}
+.w .f{position:relative;color:#fff}
+.w.k .f{color:#FFD21F}
+.pill{font-family:'Be Vietnam Pro';font-weight:800;color:#111112;background:#fff;border-radius:999px;padding:16px 34px 18px 30px;display:flex;align-items:center;gap:16px;box-shadow:0 8px 0 #111112;white-space:nowrap}
+.pill .dot{width:26px;height:26px;border-radius:50%;background:#FF7A1A;flex:none}
+.sticker{font-family:'Baloo 2 Variable';font-weight:800;color:#fff;background:#FF7A1A;border-radius:28px;padding:10px 38px 4px;box-shadow:10px 12px 0 #111112;white-space:nowrap;text-transform:none}
+.emoji{font-family:'Noto Color Emoji';line-height:1}
+</style></head>
+<body><div id="stage"></div>
+<script>
+const ease=t=>1-Math.pow(1-t,3);
+function popScale(dt){ // 0 ->1.1 ->1
+  if(dt<0) return 0;
+  if(dt<0.13) return 1.1*ease(dt/0.13);
+  if(dt<0.24) return 1.1-0.1*ease((dt-0.13)/0.11);
+  return 1;
+}
+let JOB=null, NODES=[];
+function build(job){
+  JOB=job; const st=document.getElementById('stage'); st.innerHTML=''; NODES=[];
+  for(const e of job.els){
+    const d=document.createElement('div'); d.className='el';
+    if(e.kind==='title'){
+      d.classList.add('title'); d.style.fontSize=e.size+'px';
+      d.style.setProperty('--sw',(e.size*0.17)+'px'); d.style.setProperty('--sh',(e.size*0.07)+'px');
+      e.words=[];
+      e.lines.forEach((ln,li)=>{
+        const L=document.createElement('div');
+        ln.forEach(w=>{
+          const s=document.createElement('span'); s.className='w'+(w.k?' k':'');
+          s.innerHTML=`<span class="b">${w.t}</span><span class="f">${w.t}</span>`;
+          L.appendChild(s); e.words.push({node:s,at:w.at});
+        });
+        d.appendChild(L);
+      });
+    } else if(e.kind==='pill'){
+      d.classList.add('pill'); d.style.fontSize=e.size+'px';
+      d.innerHTML=`<span class="dot"></span><span>${e.text}</span>`;
+    } else if(e.kind==='sticker'){
+      d.classList.add('sticker'); d.style.fontSize=e.size+'px'; d.textContent=e.text;
+    } else if(e.kind==='emoji'){
+      d.classList.add('emoji'); const cp=[...e.text].map(c=>c.codePointAt(0).toString(16)).filter(h=>h!=='fe0f').join('-'); d.innerHTML=`<img src="fonts/twemoji/${cp}.svg" style="width:${e.size}px;height:${e.size}px;display:block;filter:drop-shadow(0 6px 0 rgba(17,17,18,.85))">`;
+    }
+    st.appendChild(d); NODES.push([e,d]);
+  }
+  // fit + position (center x,y)
+  for(const [e,d] of NODES){
+    let w=d.offsetWidth, h=d.offsetHeight;
+    if(e.maxw && w>e.maxw){ const k=e.maxw/w; d.style.fontSize=(parseFloat(d.style.fontSize)*k)+'px';
+      if(e.kind==='title'){d.style.setProperty('--sw',(parseFloat(d.style.fontSize)*0.17)+'px');d.style.setProperty('--sh',(parseFloat(d.style.fontSize)*0.07)+'px');}
+      w=d.offsetWidth; h=d.offsetHeight;}
+    e._w=w; e._h=h;
+    d.style.left=(e.x-w/2)+'px'; d.style.top=(e.y-h/2)+'px';
+  }
+}
+function frame(t){
+  const dur=JOB.dur, out=Math.max(0,(t-(dur-0.18))/0.18);
+  const outS=1-0.12*ease(Math.min(out,1)), outO=1-Math.min(out,1);
+  for(const [e,d] of NODES){
+    let s=1,o=1,r=e.rot||0,ty=0;
+    const dt=t-(e.at||0);
+    if(e.kind==='title'){
+      d.style.opacity=(dt>=0?1:0)*outO; d.style.transform=`scale(${outS})`;
+      for(const w of e.words){const ws=popScale(t-w.at); w.node.style.transform=`scale(${ws})`; w.node.style.opacity=ws>0?1:0;}
+      continue;
+    }
+    if(e.kind==='pill'){ const p=dt<0?0:ease(Math.min(dt/0.2,1)); o=p; ty=(1-p)*30; s=0.9+0.1*p; }
+    if(e.kind==='sticker'){ s=popScale(dt); const wig=dt>0? 5*Math.sin(dt*28)*Math.exp(-dt*5):0; r=(e.rot||-6)+(dt<0.13&&dt>=0?(-14*(1-dt/0.13)):0)+wig; o=s>0?1:0; }
+    if(e.kind==='emoji'){ s=popScale(dt); o=s>0?1:0; ty= dt>0.25? 8*Math.sin((dt-0.25)*5):0; r=(e.rot||0)+(dt>0.25?4*Math.sin((dt-0.25)*4):0); }
+    d.style.opacity=o*outO; d.style.transform=`translateY(${ty}px) rotate(${r}deg) scale(${s*outS})`;
+  }
+}
+window.build=build; window.frame=frame;
+</script></body></html>
